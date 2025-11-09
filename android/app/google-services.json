@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "332395752763",
+    "project_id": "pomori-2498d",
+    "storage_bucket": "pomori-2498d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:332395752763:android:d5eb888bb607a2c6c71b1e",
+        "android_client_info": {
+          "package_name": "com.mobile.pomori"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFOBipTJ3vh1SrpJwvYxjnUhAAUYehIps"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

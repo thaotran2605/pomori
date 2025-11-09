@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local configuration files (may contain secrets)
+android/local.properties
+ios/Pods/
+*.keystore
+*.jks
+
+# Environment files
+.env
+.env.local
+.env.*.local
