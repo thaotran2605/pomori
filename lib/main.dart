@@ -5,6 +5,11 @@ import 'views/login_screen.dart';     // ⬅️ THÊM DÒNG IMPORT NÀY
 import 'views/signup_screen.dart';    // ⬅️ THÊM DÒNG IMPORT NÀY
 import 'views/timer_screen.dart';    // ⬅️ THÊM DÒNG IMPORT NÀY
 import 'views/congrats_screen.dart';    // ⬅️ THÊM DÒNG IMPORT NÀY
+import 'views/task_screen.dart';
+import 'views/new_task_screen.dart';
+import 'views/profile_screen.dart';
+import 'views/edit_profile_screen.dart';
+import 'views/statistics_screen.dart';
 
 // KHAI BÁO MÀU NỀN MỚI BẠN ĐÃ YÊU CẦU TRONG app_constants (CHỈ ĐỊNH Ở ĐÂY NẾU CHƯA CÓ FILE constants)
 const Color kPrimaryRed = Color(0xFFF05139);
@@ -47,11 +52,16 @@ class MyApp extends StatelessWidget {
       ),
 
       // ⬅️ KHẮC PHỤC LỖI: CHỈ GIỮ LẠI MỘT THUỘC TÍNH 'home'
-      // home: const LoginScreen(),
-       home: const SignupScreen(),
-     // home: const NewPomoriScreen(), // Màn hình bạn muốn kiểm tra
-      // home: const TimerScreen(),
+     //  home: const LoginScreen(),
+      // home: const SignupScreen(),
+    //  home: const NewPomoriScreen(), // Màn hình bạn muốn kiểm tra
+    //   home: const TimerScreen(),
       // home: const CongratsScreen(),
+     // home: const TaskScreen(),
+    //  home: const NewTaskScreen(),
+       // home: const ProfileScreen(),
+       // home: const EditProfileScreen(),
+      home: const StatisticsScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

@@ -1,9 +1,7 @@
-// lib/screens/signup_screen.dart
 import 'package:flutter/material.dart';
 import '../utils/app_constants.dart';
-import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
-import 'login_screen.dart'; // Để chuyển sang màn hình Đăng nhập
+import 'login_screen.dart';
 
 class SignupScreen extends StatelessWidget {
   const SignupScreen({super.key});
@@ -11,14 +9,12 @@ class SignupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final logoWidget = Image.asset(
-      'assets/images/pomori_logo.png', // Tự tạo file này trong thư mục assets
+      'assets/images/pomori_logo.png',
       height: 120,
     );
 
-    // Nút Log In nhỏ
     final loginLink = GestureDetector(
       onTap: () {
-        // Quay lại màn hình đăng nhập (hoặc dùng pop)
         Navigator.of(context).pop();
       },
       child: const Text(
@@ -31,6 +27,15 @@ class SignupScreen extends StatelessWidget {
       ),
     );
 
+    InputDecoration inputStyle(String hint) => InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    );
+
     return Scaffold(
       backgroundColor: kLightBackgroundColor,
       body: SafeArea(
@@ -39,7 +44,7 @@ class SignupScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo và Tên
+              // Logo + tiêu đề
               logoWidget,
               const SizedBox(height: 16),
               const Text(
@@ -52,25 +57,35 @@ class SignupScreen extends StatelessWidget {
               ),
               const SizedBox(height: 60),
 
-              // Form Đăng ký
-              const CustomTextField(hintText: 'Full Name'),
+              // Full Name
+              TextField(
+                decoration: inputStyle('Full Name'),
+              ),
               const SizedBox(height: 20),
-              const CustomTextField(hintText: 'ID'),
+
+              // ID
+              TextField(
+                decoration: inputStyle('ID'),
+              ),
               const SizedBox(height: 20),
-              const CustomTextField(hintText: 'Password', isPassword: true),
+
+              // Password
+              TextField(
+                obscureText: true,
+                decoration: inputStyle('Password'),
+              ),
               const SizedBox(height: 40),
 
-              // Nút Đăng ký
+              // Nút đăng ký
               PrimaryButton(
                 text: 'SIGN UP',
                 onPressed: () {
-                  // TODO: Gọi API Đăng ký
                   print('Sign Up Pressed');
                 },
               ),
               const SizedBox(height: 20),
 
-              // Chuyển sang Đăng nhập
+              // Chuyển sang Log in
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
