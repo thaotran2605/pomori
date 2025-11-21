@@ -17,6 +17,75 @@ class PomodoroService {
     }
   }
 
+  Future<PomodoroTask?> getActiveTask(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .where('isRunning', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return null;
+      }
+
+      final doc = snapshot.docs.first;
+      return PomodoroTask.fromFirestore(doc.data(), doc.id);
+    } catch (e) {
+      throw 'Lỗi khi lấy Pomodoro đang chạy: ${e.toString()}';
+    }
+  }
+
+  Future<void> setActiveTask(String userId, String taskId) async {
+    try {
+      final batch = _firestore.batch();
+
+      // Tắt các task đang chạy khác
+      final activeDocs = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .where('isRunning', isEqualTo: true)
+          .get();
+
+      for (final doc in activeDocs.docs) {
+        if (doc.id != taskId) {
+          batch.update(doc.reference, {'isRunning': false});
+        }
+      }
+
+      final targetRef = _firestore.collection(_collection).doc(taskId);
+      batch.update(targetRef, {'isRunning': true});
+
+      await batch.commit();
+    } catch (e) {
+      throw 'Lỗi khi cập nhật Pomodoro đang chạy: ${e.toString()}';
+    }
+  }
+
+  Future<void> clearActiveTask(String userId, {String? taskId}) async {
+    try {
+      if (taskId != null) {
+        await _firestore.collection(_collection).doc(taskId).update({
+          'isRunning': false,
+        });
+        return;
+      }
+
+      final activeDocs = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .where('isRunning', isEqualTo: true)
+          .get();
+
+      for (final doc in activeDocs.docs) {
+        await doc.reference.update({'isRunning': false});
+      }
+    } catch (e) {
+      throw 'Lỗi khi xóa trạng thái Pomodoro đang chạy: ${e.toString()}';
+    }
+  }
+
   // Lấy danh sách Pomodoro của user
   Stream<List<PomodoroTask>> getPomodoroTasks(String userId) {
     // Bỏ orderBy để tránh lỗi index, sort hoàn toàn trong code
@@ -25,22 +94,19 @@ class PomodoroService {
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-      final tasks = snapshot.docs
-          .map((doc) => PomodoroTask.fromFirestore(
-                doc.data(),
-                doc.id,
-              ))
-          .toList();
-      
-      // Sort trong code: theo date, sau đó theo startTime
-      tasks.sort((a, b) {
-        final dateCompare = a.date.compareTo(b.date);
-        if (dateCompare != 0) return dateCompare;
-        return a.startTime.compareTo(b.startTime);
-      });
-      
-      return tasks;
-    });
+          final tasks = snapshot.docs
+              .map((doc) => PomodoroTask.fromFirestore(doc.data(), doc.id))
+              .toList();
+
+          // Sort trong code: theo date, sau đó theo startTime
+          tasks.sort((a, b) {
+            final dateCompare = a.date.compareTo(b.date);
+            if (dateCompare != 0) return dateCompare;
+            return a.startTime.compareTo(b.startTime);
+          });
+
+          return tasks;
+        });
   }
 
   // Lấy Pomodoro theo ID
@@ -101,5 +167,35 @@ class PomodoroService {
       throw 'Lỗi khi cập nhật session: ${e.toString()}';
     }
   }
-}
 
+  // Lưu trạng thái timer
+  Future<void> saveTimerState({
+    required String taskId,
+    required DateTime timerStartedAt,
+    required int remainingSeconds,
+    required bool isFocusPhase,
+  }) async {
+    try {
+      await _firestore.collection(_collection).doc(taskId).update({
+        'timerStartedAt': Timestamp.fromDate(timerStartedAt),
+        'timerRemainingSeconds': remainingSeconds,
+        'timerIsFocusPhase': isFocusPhase,
+      });
+    } catch (e) {
+      throw 'Lỗi khi lưu trạng thái timer: ${e.toString()}';
+    }
+  }
+
+  // Xóa trạng thái timer (khi hoàn thành hoặc dừng)
+  Future<void> clearTimerState(String taskId) async {
+    try {
+      await _firestore.collection(_collection).doc(taskId).update({
+        'timerStartedAt': FieldValue.delete(),
+        'timerRemainingSeconds': FieldValue.delete(),
+        'timerIsFocusPhase': FieldValue.delete(),
+      });
+    } catch (e) {
+      throw 'Lỗi khi xóa trạng thái timer: ${e.toString()}';
+    }
+  }
+}

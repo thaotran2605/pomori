@@ -12,24 +12,64 @@ class BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Hoàn thành định nghĩa 5 icon
     return BottomNavigationBar(
-      items: const <BottomNavigationBarItem>[
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'), // 0
-        BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Tasks'), // 1
-        BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: 'New'), // 2 (Icon '+')
-        BottomNavigationBarItem(icon: Icon(Icons.bar_chart_sharp), label: 'Stats'), // 3
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'), // 4
+      items: <BottomNavigationBarItem>[
+        const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.calendar_today),
+          label: 'Tasks',
+        ),
+        BottomNavigationBarItem(
+          icon: _buildCenterActionIcon(isActive: false),
+          activeIcon: _buildCenterActionIcon(isActive: true),
+          label: 'New',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.bar_chart_sharp),
+          label: 'Stats',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.person_outline),
+          label: 'Profile',
+        ),
       ],
       currentIndex: currentIndex,
-      selectedItemColor: const Color(0xFFF75F5C), // Sử dụng màu đỏ của nút Start
+      selectedItemColor: const Color(0xFF1B1B1B),
       unselectedItemColor: Colors.grey,
       onTap: onTap,
-      type: BottomNavigationBarType.fixed, // Quan trọng để hiển thị tất cả 5 items
-      showSelectedLabels: false, // Ẩn label để giống với thiết kế trong ảnh
+      type: BottomNavigationBarType.fixed,
+      showSelectedLabels: false,
       showUnselectedLabels: false,
-      backgroundColor: Colors.white, // Màu nền trắng
-      elevation: 10,
+      backgroundColor: Colors.white,
+      elevation: 12,
+    );
+  }
+
+  static Widget _buildCenterActionIcon({required bool isActive}) {
+    const primaryColor = Color(0xFFF75F5C);
+
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        color: isActive ? primaryColor : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: primaryColor, width: 2),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: Icon(
+        Icons.add,
+        color: isActive ? Colors.white : primaryColor,
+        size: 26,
+      ),
     );
   }
 }

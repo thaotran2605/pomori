@@ -10,8 +10,12 @@ class PomodoroTask {
   final int focusTime; // Thời gian tập trung mỗi phiên (phút)
   final int breakTime; // Thời gian nghỉ mỗi phiên (phút)
   final bool isCompleted; // Trạng thái hoàn thành
+  final bool isRunning; // Đang được chạy trên timer
   final int currentSession; // Phiên hiện tại (0 = chưa bắt đầu)
   final DateTime createdAt; // Thời gian tạo task
+  final DateTime? timerStartedAt; // Thời gian bắt đầu timer (để tính toán khi quay lại)
+  final int? timerRemainingSeconds; // Thời gian còn lại khi pause/quit (giây)
+  final bool? timerIsFocusPhase; // Phase hiện tại (focus/break) khi pause/quit
 
   PomodoroTask({
     this.id,
@@ -23,8 +27,12 @@ class PomodoroTask {
     this.focusTime = 25,
     this.breakTime = 5,
     this.isCompleted = false,
+    this.isRunning = false,
     this.currentSession = 0,
     DateTime? createdAt,
+    this.timerStartedAt,
+    this.timerRemainingSeconds,
+    this.timerIsFocusPhase,
   }) : createdAt = createdAt ?? DateTime.now();
 
   // Convert từ Firestore document
@@ -39,8 +47,12 @@ class PomodoroTask {
       focusTime: data['focusTime'] ?? 25,
       breakTime: data['breakTime'] ?? 5,
       isCompleted: data['isCompleted'] ?? false,
+      isRunning: data['isRunning'] ?? false,
       currentSession: data['currentSession'] ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      timerStartedAt: (data['timerStartedAt'] as Timestamp?)?.toDate(),
+      timerRemainingSeconds: data['timerRemainingSeconds'] as int?,
+      timerIsFocusPhase: data['timerIsFocusPhase'] as bool?,
     );
   }
 
@@ -55,8 +67,12 @@ class PomodoroTask {
       'focusTime': focusTime,
       'breakTime': breakTime,
       'isCompleted': isCompleted,
+      'isRunning': isRunning,
       'currentSession': currentSession,
       'createdAt': Timestamp.fromDate(createdAt),
+      if (timerStartedAt != null) 'timerStartedAt': Timestamp.fromDate(timerStartedAt!),
+      if (timerRemainingSeconds != null) 'timerRemainingSeconds': timerRemainingSeconds,
+      if (timerIsFocusPhase != null) 'timerIsFocusPhase': timerIsFocusPhase,
     };
   }
 
@@ -71,8 +87,12 @@ class PomodoroTask {
     int? focusTime,
     int? breakTime,
     bool? isCompleted,
+    bool? isRunning,
     int? currentSession,
     DateTime? createdAt,
+    DateTime? timerStartedAt,
+    int? timerRemainingSeconds,
+    bool? timerIsFocusPhase,
   }) {
     return PomodoroTask(
       id: id ?? this.id,
@@ -84,9 +104,12 @@ class PomodoroTask {
       focusTime: focusTime ?? this.focusTime,
       breakTime: breakTime ?? this.breakTime,
       isCompleted: isCompleted ?? this.isCompleted,
+      isRunning: isRunning ?? this.isRunning,
       currentSession: currentSession ?? this.currentSession,
       createdAt: createdAt ?? this.createdAt,
+      timerStartedAt: timerStartedAt ?? this.timerStartedAt,
+      timerRemainingSeconds: timerRemainingSeconds ?? this.timerRemainingSeconds,
+      timerIsFocusPhase: timerIsFocusPhase ?? this.timerIsFocusPhase,
     );
   }
 }
-

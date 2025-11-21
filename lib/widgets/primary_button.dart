@@ -4,18 +4,20 @@ import '../utils/app_constants.dart';
 
 class PrimaryButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isLoading;
 
   const PrimaryButton({
     super.key,
     required this.text,
     required this.onPressed,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: kPrimaryRed,
         foregroundColor: kInputFillColor, // Chữ màu trắng
@@ -26,13 +28,19 @@ class PrimaryButton extends StatelessWidget {
         elevation: 5, // Thêm độ nổi cho nút
         shadowColor: kPrimaryRed.withOpacity(0.5),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: isLoading
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(kInputFillColor),
+              ),
+            )
+          : Text(
+              text,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
     );
   }
 }

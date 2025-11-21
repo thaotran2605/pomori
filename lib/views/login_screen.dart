@@ -1,18 +1,79 @@
 // lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../utils/app_routes.dart';
 import '../utils/app_constants.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
-import 'signup_screen.dart'; // Để chuyển sang màn hình Đăng ký
+import 'signup_screen.dart';
 
-// lib/views/login_screen.dart (hoặc vị trí hiện tại của bạn)
-
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  static const routeName = AppRoutes.login;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _authService = AuthService();
+
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('Vui lòng nhập đầy đủ email và mật khẩu.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _authService.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+      _showMessage('Đăng nhập thành công!', isError: false);
+      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ... Khai báo logoWidget và các style khác ...
     final logoWidget = Image.asset(
       'assets/images/pomori_logo.png',
       height: 120,
@@ -21,22 +82,20 @@ class LoginScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: kLightBackgroundColor,
       body: SafeArea(
-        // THAY THẾ SingleChildScrollView BẰNG CustomScrollView
         child: CustomScrollView(
           slivers: [
             SliverFillRemaining(
-              // Đặt hasScrollBody: false nếu bạn không muốn cuộn khi không cần thiết
               hasScrollBody: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32.0,
+                  vertical: 40.0,
+                ),
                 child: Column(
-                  // ĐÂY LÀ ĐIỂM QUAN TRỌNG: Column SẼ ĐƯỢC CĂN GIỮA TRONG KHÔNG GIAN CÒN LẠI
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
                     logoWidget,
                     const SizedBox(height: 16),
-                    // ... Các widget còn lại ...
                     const Text(
                       'Pomori',
                       style: TextStyle(
@@ -46,29 +105,31 @@ class LoginScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 60),
-
-                    // Form Đăng nhập
-                    const CustomTextField(hintText: 'ID'),
-                    const SizedBox(height: 20),
-                    const CustomTextField(hintText: 'Password', isPassword: true),
-                    const SizedBox(height: 40),
-
-                    // Nút Đăng nhập
-                    PrimaryButton(
-                      text: 'LOG IN',
-                      onPressed: () {
-                        print('Login Pressed');
-                      },
+                    CustomTextField(
+                      hintText: 'Email',
+                      controller: _emailController,
                     ),
                     const SizedBox(height: 20),
-
-                    // Nút Chuyển sang Đăng ký
+                    CustomTextField(
+                      hintText: 'Password',
+                      isPassword: true,
+                      controller: _passwordController,
+                    ),
+                    const SizedBox(height: 40),
+                    PrimaryButton(
+                      text: 'LOG IN',
+                      isLoading: _isLoading,
+                      onPressed: _isLoading ? null : () => _handleLogin(),
+                    ),
+                    const SizedBox(height: 20),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (context) => const SignupScreen()),
-                        );
-                      },
+                      onTap: _isLoading
+                          ? null
+                          : () {
+                              Navigator.of(
+                                context,
+                              ).pushNamed(SignupScreen.routeName);
+                            },
                       child: const Text(
                         'Sign up',
                         style: TextStyle(
