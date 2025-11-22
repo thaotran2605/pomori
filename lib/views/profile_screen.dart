@@ -6,7 +6,6 @@ import '../utils/app_routes.dart';
 import '../utils/navigation_utils.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
-import '../services/pomodoro_log_service.dart';
 import '../widgets/bottom_nav_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -20,36 +19,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final SettingsService _settingsService = SettingsService();
-  final PomodoroLogService _logService = PomodoroLogService();
-  Map<String, dynamic>? _userStats;
-  bool _isLoadingStats = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserStats();
-  }
-
-  Future<void> _loadUserStats() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        final stats = await _logService.getTotalStats(user.uid);
-        if (mounted) {
-          setState(() {
-            _userStats = stats;
-            _isLoadingStats = false;
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _isLoadingStats = false;
-          });
-        }
-      }
-    }
-  }
 
   void _onTabSelected(BuildContext context, int index) {
     BottomNavNavigator.goTo(context, index);
@@ -127,31 +96,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: kTextColor.withValues(alpha: 0.6),
                       ),
                     ),
-                    if (!_isLoadingStats && _userStats != null) ...[
-                      const SizedBox(height: 20),
-                      const Divider(),
-                      const SizedBox(height: 15),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _StatItem(
-                            value: '${_userStats!['totalSessions'] ?? 0}',
-                            label: 'Sessions',
-                            icon: Icons.timer,
-                          ),
-                          _StatItem(
-                            value: '${_userStats!['tasksDone'] ?? 0}',
-                            label: 'Tasks',
-                            icon: Icons.check_circle,
-                          ),
-                          _StatItem(
-                            value: '${_userStats!['totalFocusTime'] ?? 0}m',
-                            label: 'Focus',
-                            icon: Icons.trending_up,
-                          ),
-                        ],
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -881,39 +825,3 @@ class _SettingsItem extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String value;
-  final String label;
-  final IconData icon;
-
-  const _StatItem({
-    required this.value,
-    required this.label,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: kPrimaryRed, size: 24),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: kTextColor,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: kTextColor.withValues(alpha: 0.6),
-          ),
-        ),
-      ],
-    );
-  }
-}

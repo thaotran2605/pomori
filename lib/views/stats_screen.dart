@@ -23,6 +23,9 @@ class _StatsScreenState extends State<StatsScreen> {
   Map<String, dynamic>? _previousWeekStats; // Stats tuần trước để so sánh
   int _streak = 0;
   List<Map<String, dynamic>>? _chartData;
+  List<Map<String, dynamic>>? _dailyChartData; // Biểu đồ ngày khi click vào cột
+  Map<String, dynamic>? _selectedDayStats; // Stats của ngày được chọn
+  DateTime? _selectedDay; // Ngày được chọn từ biểu đồ tuần
   String _selectedTimeRange = 'This week';
   DateTime _selectedWeekStart = DateTime.now(); // Tuần được chọn
   double? _averageFocusTime; // Trung bình thời gian focus
@@ -51,41 +54,34 @@ class _StatsScreenState extends State<StatsScreen> {
       List<Map<String, dynamic>>? chartData;
       Map<String, dynamic>? filteredStats;
       
-      if (_selectedTimeRange == 'Day') {
-        // Load dữ liệu theo ngày với các khoảng thời gian 00, 06, 12, 18
-        final today = DateTime.now();
-        chartData = await _logService.getDailyChartData(user.uid, today);
-        filteredStats = await _logService.getDailyStats(user.uid, today);
-        _previousWeekStats = null; // Không so sánh cho Day mode
-        // Tính trung bình cho Day mode
-        if (chartData.isNotEmpty) {
-          final totalSessions = chartData.fold<int>(0, (sum, item) => sum + (item['sessions'] as int? ?? 0));
-          final totalFocusTime = filteredStats['totalFocusTime'] as int? ?? 0;
-          _averageFocusTime = totalSessions > 0 ? totalFocusTime / totalSessions : 0;
-        } else {
-          _averageFocusTime = 0;
-        }
+      // Load dữ liệu theo tuần
+      chartData = await _logService.getWeeklyChartData(user.uid, _selectedWeekStart);
+      filteredStats = await _logService.getWeeklyStats(user.uid, _selectedWeekStart);
+      
+      // Load dữ liệu tuần trước để so sánh (chỉ khi ở This week)
+      if (_selectedTimeRange == 'This week') {
+        final previousWeekStart = _selectedWeekStart.subtract(const Duration(days: 7));
+        _previousWeekStats = await _logService.getWeeklyStats(user.uid, previousWeekStart);
       } else {
-        // Load dữ liệu theo tuần
-        chartData = await _logService.getWeeklyChartData(user.uid, _selectedWeekStart);
-        filteredStats = await _logService.getWeeklyStats(user.uid, _selectedWeekStart);
-        
-        // Load dữ liệu tuần trước để so sánh (chỉ khi ở This week)
-        if (_selectedTimeRange == 'This week') {
-          final previousWeekStart = _selectedWeekStart.subtract(const Duration(days: 7));
-          _previousWeekStats = await _logService.getWeeklyStats(user.uid, previousWeekStart);
-        } else {
-          _previousWeekStats = null;
-        }
-        
-        // Tính trung bình cho Week mode
-        if (chartData.isNotEmpty) {
-          final totalSessions = chartData.fold<int>(0, (sum, item) => sum + (item['sessions'] as int? ?? 0));
-          final totalFocusTime = filteredStats['totalFocusTime'] as int? ?? 0;
-          _averageFocusTime = totalSessions > 0 ? totalFocusTime / totalSessions : 0;
-        } else {
-          _averageFocusTime = 0;
-        }
+        _previousWeekStats = null;
+      }
+      
+      // Tính trung bình cho Week mode
+      if (chartData.isNotEmpty) {
+        final totalSessions = chartData.fold<int>(0, (sum, item) => sum + (item['sessions'] as int? ?? 0));
+        final totalFocusTime = filteredStats['totalFocusTime'] as int? ?? 0;
+        _averageFocusTime = totalSessions > 0 ? totalFocusTime / totalSessions : 0;
+      } else {
+        _averageFocusTime = 0;
+      }
+      
+      // Load dữ liệu ngày nếu có ngày được chọn
+      if (_selectedDay != null) {
+        _dailyChartData = await _logService.getDailyChartData(user.uid, _selectedDay!);
+        _selectedDayStats = await _logService.getDailyStats(user.uid, _selectedDay!);
+      } else {
+        _dailyChartData = null;
+        _selectedDayStats = null;
       }
       
       final totalStats = await _logService.getTotalStats(user.uid);
@@ -98,6 +94,8 @@ class _StatsScreenState extends State<StatsScreen> {
           _previousWeekStats = _previousWeekStats;
           _streak = streak;
           _chartData = chartData;
+          _dailyChartData = _dailyChartData;
+          _selectedDayStats = _selectedDayStats;
           _averageFocusTime = _averageFocusTime;
           _isLoading = false;
         });
@@ -158,17 +156,6 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: kPrimaryRed),
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-              });
-              _loadStats();
-            },
-          ),
-        ],
       ),
       body: SafeArea(
         child: _isLoading
@@ -223,6 +210,10 @@ class _StatsScreenState extends State<StatsScreen> {
                                     } else if (value == 'Two weeks ago') {
                                       _selectedWeekStart = currentWeekStart.subtract(const Duration(days: 14));
                                     }
+                                    // Reset ngày được chọn khi đổi tuần
+                                    _selectedDay = null;
+                                    _dailyChartData = null;
+                                    _selectedDayStats = null;
                                   });
                                   _loadStats();
                                 },
@@ -237,12 +228,20 @@ class _StatsScreenState extends State<StatsScreen> {
                                 data: _chartData!,
                                 timeRange: _selectedTimeRange,
                                 averageFocusTime: _averageFocusTime ?? 0,
+                                selectedDay: _selectedDay,
+                                onDaySelected: (date) {
+                                  setState(() {
+                                    _selectedDay = date;
+                                  });
+                                  _loadStats();
+                                },
                                 onSwipeLeft: () {
                                   // Swipe trái: xem tuần trước (chỉ khi ở This week mode)
                                   if (_selectedTimeRange == 'This week') {
                                     final newWeekStart = _selectedWeekStart.subtract(const Duration(days: 7));
                                     setState(() {
                                       _selectedWeekStart = newWeekStart;
+                                      _selectedDay = null; // Reset ngày được chọn
                                     });
                                     _loadStats();
                                   }
@@ -255,6 +254,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                     if (_selectedWeekStart.isBefore(currentWeekStart)) {
                                       setState(() {
                                         _selectedWeekStart = currentWeekStart;
+                                        _selectedDay = null; // Reset ngày được chọn
                                       });
                                       _loadStats();
                                     }
@@ -283,6 +283,48 @@ class _StatsScreenState extends State<StatsScreen> {
                         ],
                       ),
                     ),
+                    // Biểu đồ ngày khi click vào cột
+                    if (_selectedDay != null && _dailyChartData != null && _dailyChartData!.isNotEmpty) ...[
+                      const SizedBox(height: 30),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(15),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              spreadRadius: 1,
+                              blurRadius: 5,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Daily Statistics - ${_formatDayDate(_selectedDay!)}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: kTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              height: 250,
+                              child: _DailyBarChart(
+                                data: _dailyChartData!,
+                                averageFocusTime: _selectedDayStats != null && _selectedDayStats!['totalSessions'] != null && (_selectedDayStats!['totalSessions'] as int) > 0
+                                    ? (_selectedDayStats!['totalFocusTime'] as int? ?? 0) / (_selectedDayStats!['totalSessions'] as int)
+                                    : 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 30),
                     // So sánh với tuần trước (chỉ hiển thị khi ở week mode)
                     if (_selectedTimeRange != 'Day' && _previousWeekStats != null)
@@ -293,13 +335,14 @@ class _StatsScreenState extends State<StatsScreen> {
                     if (_selectedTimeRange != 'Day' && _previousWeekStats != null)
                       const SizedBox(height: 20),
                     // Summary cards - Đưa xuống dưới
+                    // Hiển thị stats của ngày được chọn nếu có, nếu không thì hiển thị stats của tuần
                     Row(
                       children: [
                         Expanded(
                           child: _StatCard(
                             title: 'Total Focus',
                             value: _formatFocusTime(
-                                _filteredStats?['totalFocusTime'] ?? _totalStats?['totalFocusTime'] ?? 0),
+                                _selectedDayStats?['totalFocusTime'] ?? _filteredStats?['totalFocusTime'] ?? _totalStats?['totalFocusTime'] ?? 0),
                             icon: Icons.timer,
                             color: kPrimaryRed,
                           ),
@@ -308,7 +351,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         Expanded(
                           child: _StatCard(
                             title: 'Sessions',
-                            value: '${_filteredStats?['totalSessions'] ?? _totalStats?['totalSessions'] ?? 0}',
+                            value: '${_selectedDayStats?['totalSessions'] ?? _filteredStats?['totalSessions'] ?? _totalStats?['totalSessions'] ?? 0}',
                             icon: Icons.check_circle,
                             color: Colors.green,
                           ),
@@ -321,7 +364,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         Expanded(
                           child: _StatCard(
                             title: 'Tasks Done',
-                            value: '${_filteredStats?['tasksDone'] ?? _totalStats?['tasksDone'] ?? 0}',
+                            value: '${_selectedDayStats?['tasksDone'] ?? _filteredStats?['tasksDone'] ?? _totalStats?['tasksDone'] ?? 0}',
                             icon: Icons.task_alt,
                             color: Colors.blue,
                           ),
@@ -330,9 +373,11 @@ class _StatsScreenState extends State<StatsScreen> {
                         Expanded(
                           child: _StatCard(
                             title: 'Average Focus',
-                            value: _averageFocusTime != null 
-                                ? _formatFocusTime(_averageFocusTime!.round())
-                                : '0m',
+                            value: _selectedDayStats != null && _selectedDayStats!['totalSessions'] != null && (_selectedDayStats!['totalSessions'] as int) > 0
+                                ? _formatFocusTime(((_selectedDayStats!['totalFocusTime'] as int? ?? 0) / (_selectedDayStats!['totalSessions'] as int)).round())
+                                : (_averageFocusTime != null 
+                                    ? _formatFocusTime(_averageFocusTime!.round())
+                                    : '0m'),
                             icon: Icons.trending_up,
                             color: Colors.purple,
                           ),
@@ -504,6 +549,181 @@ class _ComparisonCard extends StatelessWidget {
   }
 }
 
+String _formatDayDate(DateTime date) {
+  final months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+  final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}';
+}
+
+class _DailyBarChart extends StatelessWidget {
+  final List<Map<String, dynamic>> data;
+  final double averageFocusTime;
+
+  const _DailyBarChart({
+    required this.data,
+    required this.averageFocusTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return const Center(
+        child: Text(
+          'No data available',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    // Tìm giá trị max để scale
+    final maxSessions = data.map((d) {
+      final value = d['sessions'] ?? d['label'];
+      return value is int ? value : 0;
+    }).whereType<int>().fold<int>(0, (a, b) => a > b ? a : b);
+    final chartMax = maxSessions > 0 ? maxSessions : 8; // Default max là 8 nếu không có data
+    
+    // Tính vị trí đường trung bình (dựa trên số sessions trung bình)
+    // Giả sử mỗi session là 25 phút, tính số sessions trung bình
+    final averageSessions = averageFocusTime > 0 ? (averageFocusTime / 25).round() : 0;
+    final averageHeight = chartMax > 0 ? (averageSessions / chartMax).clamp(0.0, 1.0) : 0.0;
+
+    return Stack(
+      children: [
+        Container(
+          height: 250,
+          padding: const EdgeInsets.only(bottom: 30),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: data.asMap().entries.map((entry) {
+              final item = entry.value;
+              final sessions = item['sessions'] as int? ?? 0;
+              final label = item['label'] as String? ?? '';
+              
+              // Tính chiều cao của bar dựa trên max value
+              final normalizedHeight = chartMax > 0 ? (sessions / chartMax).clamp(0.0, 1.0) : 0.0;
+              
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // Bar với chiều cao động
+                      SizedBox(
+                        height: 180 * normalizedHeight,
+                        child: FractionallySizedBox(
+                          widthFactor: 0.6,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: kPrimaryRed,
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(4),
+                                topRight: Radius.circular(4),
+                              ),
+                            ),
+                            alignment: Alignment.topCenter,
+                            child: sessions > 0
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      '$sessions',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Label
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: kTextColor.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        // Đường kẻ trung bình (đứt nét, màu xám)
+        if (averageHeight > 0 && averageHeight < 1.0)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 30 + (180 * (1 - averageHeight)),
+            child: CustomPaint(
+              painter: _DashedLinePainter(),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Avg: $averageSessions',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DashedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.withOpacity(0.6)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    const dashWidth = 5.0;
+    const dashSpace = 3.0;
+    double startX = 0;
+
+    while (startX < size.width) {
+      canvas.drawLine(
+        Offset(startX, size.height / 2),
+        Offset(startX + dashWidth, size.height / 2),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _TimeRangeDropdown extends StatelessWidget {
   final String selectedRange;
   final ValueChanged<String> onChanged;
@@ -535,7 +755,6 @@ class _TimeRangeDropdown extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
                               items: const [
-            DropdownMenuItem(value: 'Day', child: Text('Day')),
             DropdownMenuItem(value: 'This week', child: Text('This week')),
             DropdownMenuItem(value: 'Last week', child: Text('Last week')),
             DropdownMenuItem(value: 'Two weeks ago', child: Text('Two weeks ago')),
@@ -555,6 +774,8 @@ class _BarChartWithSwipe extends StatelessWidget {
   final List<Map<String, dynamic>> data;
   final String timeRange;
   final double averageFocusTime;
+  final DateTime? selectedDay;
+  final ValueChanged<DateTime> onDaySelected;
   final VoidCallback onSwipeLeft;
   final VoidCallback onSwipeRight;
   final bool Function() canSwipeRight;
@@ -563,6 +784,8 @@ class _BarChartWithSwipe extends StatelessWidget {
     required this.data,
     required this.timeRange,
     required this.averageFocusTime,
+    this.selectedDay,
+    required this.onDaySelected,
     required this.onSwipeLeft,
     required this.onSwipeRight,
     required this.canSwipeRight,
@@ -617,113 +840,103 @@ class _BarChartWithSwipe extends StatelessWidget {
                 final item = entry.value;
                 final sessions = item['sessions'] as int? ?? 0;
                 final label = item['label'] as String? ?? item['day'] as String? ?? '';
+                final date = item['date'] as DateTime?;
+                
+                // Kiểm tra xem cột này có được chọn không
+                final isSelected = selectedDay != null && date != null &&
+                    selectedDay!.year == date.year &&
+                    selectedDay!.month == date.month &&
+                    selectedDay!.day == date.day;
                 
                 // Tính chiều cao của bar dựa trên max value
                 final normalizedHeight = chartMax > 0 ? (sessions / chartMax).clamp(0.0, 1.0) : 0.0;
                 
                 return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        // Bar với chiều cao động
-                        SizedBox(
-                          height: 180 * normalizedHeight,
-                          child: FractionallySizedBox(
-                            widthFactor: 0.6,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: kPrimaryRed,
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(4),
-                                  topRight: Radius.circular(4),
+                  child: GestureDetector(
+                    onTap: date != null ? () => onDaySelected(date) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          // Bar với chiều cao động
+                          SizedBox(
+                            height: 180 * normalizedHeight,
+                            child: FractionallySizedBox(
+                              widthFactor: 0.6,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: isSelected ? Colors.green : kPrimaryRed,
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(4),
+                                    topRight: Radius.circular(4),
+                                  ),
                                 ),
-                              ),
-                              alignment: Alignment.topCenter,
-                              child: sessions > 0
-                                  ? Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        '$sessions',
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
+                                alignment: Alignment.topCenter,
+                                child: sessions > 0
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          '$sessions',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ),
-                                    )
-                                  : null,
+                                      )
+                                    : null,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Label
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: kTextColor.withOpacity(0.6),
+                          const SizedBox(height: 8),
+                          // Label
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isSelected ? Colors.green : kTextColor.withOpacity(0.6),
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );
               }).toList(),
             ),
           ),
-          // Đường kẻ trung bình
+          // Đường kẻ trung bình (đứt nét, màu xám)
           if (averageHeight > 0 && averageHeight < 1.0)
             Positioned(
               left: 0,
               right: 0,
               bottom: 30 + (180 * (1 - averageHeight)),
-              child: Container(
-                height: 1,
-                color: Colors.blue.withOpacity(0.6),
+              child: CustomPaint(
+                painter: _DashedLinePainter(),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            top: BorderSide(
-                              color: Colors.blue.withOpacity(0.6),
-                              width: 1,
-                              style: BorderStyle.solid,
-                            ),
-                          ),
-                        ),
-                      ),
+                      child: Container(),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.grey.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         'Avg: $averageSessions',
                         style: TextStyle(
                           fontSize: 10,
-                          color: Colors.blue,
+                          color: Colors.grey[700],
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                     Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            top: BorderSide(
-                              color: Colors.blue.withOpacity(0.6),
-                              width: 1,
-                              style: BorderStyle.solid,
-                            ),
-                          ),
-                        ),
-                      ),
+                      child: Container(),
                     ),
                   ],
                 ),
