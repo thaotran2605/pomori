@@ -64,13 +64,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: kLightBackgroundColor,
         elevation: 0,
-        title: const Text(
-          'Profile',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: kTextColor,
-          ),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/pomori_logo2.png',
+              width: 40,
+              height: 40,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Profile',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: kTextColor,
+              ),
+            ),
+          ],
         ),
       ),
       body: SafeArea(

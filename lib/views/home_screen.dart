@@ -7,7 +7,6 @@ import '../utils/navigation_utils.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../services/pomodoro_service.dart';
 import '../models/pomodoro_task.dart';
-import 'timer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,7 +37,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startPomodoro(PomodoroTask task) {
-    Navigator.of(context).pushNamed(TimerScreen.routeName, arguments: task);
+    // Chuyển đến màn hình New Pomori (nút đỏ) với task được chọn
+    // Dùng pushReplacementNamed để thay thế route hiện tại và đảm bảo bottom nav hiển thị đúng
+    Navigator.of(context).pushReplacementNamed(
+      AppRoutes.newPomori,
+      arguments: task,
+    );
   }
 
   @override

@@ -6,6 +6,7 @@ import '../utils/navigation_utils.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../viewmodels/new_pomori_view_model.dart';
 import '../viewmodels/ui_message.dart';
+import '../models/pomodoro_task.dart';
 import 'timer_screen.dart';
 
 class NewPomoriScreen extends StatefulWidget {
@@ -22,14 +23,27 @@ class _NewPomoriScreenState extends State<NewPomoriScreen> {
   final _taskNameController = TextEditingController();
   late final NewPomoriViewModel _viewModel;
   bool _hasCheckedActiveTask = false;
+  bool _hasCheckedSelectedTask = false;
 
   @override
   void initState() {
     super.initState();
     _viewModel = NewPomoriViewModel();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkActiveTask();
-    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasCheckedSelectedTask) {
+      _hasCheckedSelectedTask = true;
+      _checkForSelectedTask();
+    }
+    if (!_hasCheckedActiveTask) {
+      _hasCheckedActiveTask = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkActiveTask();
+      });
+    }
   }
 
   @override
@@ -39,9 +53,29 @@ class _NewPomoriScreenState extends State<NewPomoriScreen> {
     super.dispose();
   }
 
+  void _checkForSelectedTask() {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is PomodoroTask) {
+      // Tự động chuyển đến TimerScreen với task được chọn
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed(
+            TimerScreen.routeName,
+            arguments: args,
+          );
+        }
+      });
+    }
+  }
+
   Future<void> _checkActiveTask() async {
-    if (_hasCheckedActiveTask) return;
-    _hasCheckedActiveTask = true;
+    // Kiểm tra xem có task được chọn từ home screen không
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is PomodoroTask) {
+      // Nếu đã có task được chọn, không cần check active task
+      return;
+    }
+    
     final activeTask = await _viewModel.fetchActiveTask();
     if (!mounted) return;
 

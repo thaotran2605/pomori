@@ -64,8 +64,8 @@ class PomodoroLogService {
     }
   }
 
-  // Lấy thống kê theo ngày
-  Stream<Map<String, dynamic>> getDailyStats(String userId, DateTime date) {
+  // Lấy thống kê theo ngày (Stream - real-time updates)
+  Stream<Map<String, dynamic>> getDailyStatsStream(String userId, DateTime date) {
     final targetDate = DateTime(date.year, date.month, date.day);
 
     // Fetch user logs and filter by date in memory to avoid composite index requirement
@@ -131,7 +131,7 @@ class PomodoroLogService {
   }
 
   // Lấy thống kê theo tuần
-  Future<Map<String, int>> getWeeklyStats(String userId, DateTime weekStart) async {
+  Future<Map<String, dynamic>> getWeeklyStats(String userId, DateTime weekStart) async {
     try {
       final weekEnd = weekStart.add(const Duration(days: 7));
       // Fetch user logs and filter by date in memory to avoid composite index requirement
@@ -140,39 +140,35 @@ class PomodoroLogService {
           .where('userId', isEqualTo: userId)
           .get();
 
-      // Nhóm theo ngày trong tuần
-      final Map<int, int> dailySessions = {};
       final weekStartDateOnly = DateTime(weekStart.year, weekStart.month, weekStart.day);
       final weekEndDateOnly = DateTime(weekEnd.year, weekEnd.month, weekEnd.day);
-      
+
+      // Tính tổng sessions và focus time trong tuần
+      int totalSessions = 0;
+      int totalFocusTime = 0;
+      int tasksDone = 0;
+
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final date = (data['date'] as Timestamp).toDate();
         final dateOnly = DateTime(date.year, date.month, date.day);
-        // Filter in memory to ensure we only count logs within the week range
+        
         if (dateOnly.compareTo(weekStartDateOnly) >= 0 && 
-            dateOnly.compareTo(weekEndDateOnly) < 0 && 
-            data['type'] != 'task_completion') {
-          final dayOfWeek = date.weekday; // 1 = Monday, 7 = Sunday
-          dailySessions[dayOfWeek] = (dailySessions[dayOfWeek] ?? 0) + 1;
+            dateOnly.compareTo(weekEndDateOnly) < 0) {
+          if (data['type'] == 'task_completion') {
+            tasksDone++;
+          } else {
+            totalSessions++;
+            totalFocusTime += (data['focusTime'] as int?) ?? 0;
+          }
         }
       }
 
-      // Chuyển sang map với key là index trong tuần (0-6, bắt đầu từ Chủ nhật)
-      final Map<String, int> result = {};
-      for (int i = 0; i < 7; i++) {
-        // Chuyển đổi: 0=CN, 1=T2, ..., 6=T7
-        // weekday: 1=T2, 2=T3, ..., 7=CN
-        int weekday;
-        if (i == 0) {
-          weekday = 7; // Chủ nhật
-        } else {
-          weekday = i; // T2-T7
-        }
-        result['day$i'] = dailySessions[weekday] ?? 0;
-      }
-
-      return result;
+      return {
+        'totalSessions': totalSessions,
+        'totalFocusTime': totalFocusTime,
+        'tasksDone': tasksDone,
+      };
     } catch (e) {
       throw 'Lỗi khi lấy thống kê tuần: ${e.toString()}';
     }
@@ -228,12 +224,140 @@ class PomodoroLogService {
     }
   }
 
-  // Lấy thống kê theo tuần cho biểu đồ (7 ngày gần nhất)
-  Future<List<Map<String, dynamic>>> getWeeklyChartData(String userId) async {
+  // Lấy ngày đầu tiên có dữ liệu thống kê
+  Future<DateTime?> getFirstLogDate(String userId) async {
     try {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final weekStart = today.subtract(const Duration(days: 6)); // 7 ngày gần nhất
+      final snapshot = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .orderBy('date', descending: false)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return null;
+      }
+
+      final data = snapshot.docs.first.data();
+      final date = (data['date'] as Timestamp).toDate();
+      return DateTime(date.year, date.month, date.day);
+    } catch (e) {
+      // Nếu không có index cho orderBy, lấy tất cả và tìm min
+      try {
+        final snapshot = await _firestore
+            .collection(_collection)
+            .where('userId', isEqualTo: userId)
+            .get();
+
+        if (snapshot.docs.isEmpty) {
+          return null;
+        }
+
+        DateTime? firstDate;
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final date = (data['date'] as Timestamp).toDate();
+          final dateOnly = DateTime(date.year, date.month, date.day);
+          if (firstDate == null || dateOnly.isBefore(firstDate)) {
+            firstDate = dateOnly;
+          }
+        }
+        return firstDate;
+      } catch (e2) {
+        return null;
+      }
+    }
+  }
+
+  // Lấy thống kê theo ngày cho biểu đồ (theo các khoảng thời gian 00, 06, 12, 18)
+  Future<List<Map<String, dynamic>>> getDailyChartData(String userId, DateTime date) async {
+    try {
+      final targetDate = DateTime(date.year, date.month, date.day);
+
+      final snapshot = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      // Nhóm theo khoảng thời gian: 00-06, 06-12, 12-18, 18-24
+      final Map<int, int> timeSlotSessions = {0: 0, 6: 0, 12: 0, 18: 0};
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['type'] == 'task_completion') continue;
+        
+        final logDate = (data['date'] as Timestamp).toDate();
+        final logDateOnly = DateTime(logDate.year, logDate.month, logDate.day);
+        
+        if (logDateOnly.isAtSameMomentAs(targetDate)) {
+          final hour = logDate.hour;
+          if (hour >= 0 && hour < 6) {
+            timeSlotSessions[0] = (timeSlotSessions[0] ?? 0) + 1;
+          } else if (hour >= 6 && hour < 12) {
+            timeSlotSessions[6] = (timeSlotSessions[6] ?? 0) + 1;
+          } else if (hour >= 12 && hour < 18) {
+            timeSlotSessions[12] = (timeSlotSessions[12] ?? 0) + 1;
+          } else if (hour >= 18 && hour < 24) {
+            timeSlotSessions[18] = (timeSlotSessions[18] ?? 0) + 1;
+          }
+        }
+      }
+
+      return [
+        {'label': '00', 'sessions': timeSlotSessions[0] ?? 0},
+        {'label': '06', 'sessions': timeSlotSessions[6] ?? 0},
+        {'label': '12', 'sessions': timeSlotSessions[12] ?? 0},
+        {'label': '18', 'sessions': timeSlotSessions[18] ?? 0},
+      ];
+    } catch (e) {
+      throw 'Lỗi khi lấy dữ liệu biểu đồ ngày: ${e.toString()}';
+    }
+  }
+
+  // Lấy thống kê theo ngày
+  Future<Map<String, dynamic>> getDailyStats(String userId, DateTime date) async {
+    try {
+      final targetDate = DateTime(date.year, date.month, date.day);
+
+      final snapshot = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      int totalSessions = 0;
+      int totalFocusTime = 0;
+      int tasksDone = 0;
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final logDate = (data['date'] as Timestamp).toDate();
+        final logDateOnly = DateTime(logDate.year, logDate.month, logDate.day);
+        
+        if (logDateOnly.isAtSameMomentAs(targetDate)) {
+          if (data['type'] == 'task_completion') {
+            tasksDone++;
+          } else {
+            totalSessions++;
+            totalFocusTime += (data['focusTime'] as int?) ?? 0;
+          }
+        }
+      }
+
+      return {
+        'totalSessions': totalSessions,
+        'totalFocusTime': totalFocusTime,
+        'tasksDone': tasksDone,
+      };
+    } catch (e) {
+      throw 'Lỗi khi lấy thống kê ngày: ${e.toString()}';
+    }
+  }
+
+  // Lấy thống kê theo tuần cho biểu đồ
+  Future<List<Map<String, dynamic>>> getWeeklyChartData(String userId, DateTime weekStart) async {
+    try {
+      final weekStartDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
+      final weekEnd = weekStartDate.add(const Duration(days: 6));
 
       // Fetch user logs and filter by date in memory to avoid composite index requirement
       final snapshot = await _firestore
@@ -241,27 +365,28 @@ class PomodoroLogService {
           .where('userId', isEqualTo: userId)
           .get();
 
-      // Nhóm theo ngày, only consider logs from the last 7 days
+      // Nhóm theo ngày trong tuần
       final Map<DateTime, int> dailySessions = {};
-      final weekStartDateOnly = DateTime(weekStart.year, weekStart.month, weekStart.day);
-      final todayDateOnly = DateTime(today.year, today.month, today.day);
+      final weekStartDateOnly = DateTime(weekStartDate.year, weekStartDate.month, weekStartDate.day);
+      final weekEndDateOnly = DateTime(weekEnd.year, weekEnd.month, weekEnd.day);
       
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        if (data['type'] == 'task_completion') continue;
+        
         final date = (data['date'] as Timestamp).toDate();
         final dateOnly = DateTime(date.year, date.month, date.day);
-        // Filter in memory to ensure we only count logs from the last 7 days (inclusive)
+        // Filter in memory to ensure we only count logs within the week range
         if (dateOnly.compareTo(weekStartDateOnly) >= 0 && 
-            dateOnly.compareTo(todayDateOnly) <= 0 &&
-            data['type'] != 'task_completion') {
+            dateOnly.compareTo(weekEndDateOnly) <= 0) {
           dailySessions[dateOnly] = (dailySessions[dateOnly] ?? 0) + 1;
         }
       }
 
-      // Tạo danh sách 7 ngày gần nhất
+      // Tạo danh sách 7 ngày trong tuần
       final List<Map<String, dynamic>> result = [];
-      for (int i = 6; i >= 0; i--) {
-        final date = today.subtract(Duration(days: i));
+      for (int i = 0; i < 7; i++) {
+        final date = weekStartDate.add(Duration(days: i));
         final sessions = dailySessions[date] ?? 0;
         final dayName = _getDayName(date.weekday);
         result.add({

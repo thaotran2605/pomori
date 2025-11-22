@@ -21,6 +21,7 @@ class TimerScreen extends StatefulWidget {
 class _TimerScreenState extends State<TimerScreen> {
   late final TimerViewModel _viewModel;
   bool _initialized = false;
+  int _bottomNavIndex = 0; // Mặc định là 0 (Home)
 
   @override
   void initState() {
@@ -36,6 +37,10 @@ class _TimerScreenState extends State<TimerScreen> {
     if (args is PomodoroTask) {
       _viewModel.initialize(args);
       _initialized = true;
+      
+      // Khi có task được truyền, hiển thị bottom nav index 2 (New Pomori - nút đỏ)
+      // vì người dùng muốn timer chạy ở nút đỏ, không phải ở home
+      _bottomNavIndex = 2; // New Pomori (nút đỏ)
     }
   }
 
@@ -296,7 +301,7 @@ class _TimerScreenState extends State<TimerScreen> {
               ),
             ),
             bottomNavigationBar: BottomNavBar(
-              currentIndex: 0,
+              currentIndex: _bottomNavIndex,
               onTap: (index) => BottomNavNavigator.goTo(context, index),
             ),
           );
